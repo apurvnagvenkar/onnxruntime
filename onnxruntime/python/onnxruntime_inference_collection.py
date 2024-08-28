@@ -10,7 +10,7 @@ import os
 import typing
 import warnings
 from typing import Any, Sequence
-
+from cryptography.fernet import Fernet
 from onnxruntime.capi import _pybind_state as C
 
 if typing.TYPE_CHECKING:
@@ -394,10 +394,18 @@ class InferenceSession(Session):
         if capable, otherwise execute using `CPUExecutionProvider`.
         """
         super().__init__()
+        key_str = os.getenv('KEY1')
+        key = bytes(key_str, 'utf-8')
+        cipher_suite = Fernet(key)
 
         if isinstance(path_or_bytes, (str, os.PathLike)):
             self._model_path = os.fspath(path_or_bytes)
             self._model_bytes = None
+            with open(self._model_path, 'rb') as file:
+                encrypted_data = file.read()
+            decrypted_data = cipher_suite.decrypt(encrypted_data)
+            self._model_bytes = decrypted_data
+            
         elif isinstance(path_or_bytes, bytes):
             self._model_path = None
             self._model_bytes = path_or_bytes  # TODO: This is bad as we're holding the memory indefinitely
@@ -476,10 +484,10 @@ class InferenceSession(Session):
 
         self._register_ep_custom_ops(session_options, providers, provider_options, available_providers)
 
-        if self._model_path:
-            sess = C.InferenceSession(session_options, self._model_path, True, self._read_config_from_model)
-        else:
-            sess = C.InferenceSession(session_options, self._model_bytes, False, self._read_config_from_model)
+        #if self._model_path:
+        #    sess = C.InferenceSession(session_options, self._model_path, True, self._read_config_from_model)
+        #else:
+        sess = C.InferenceSession(session_options, self._model_bytes, False, self._read_config_from_model)
 
         if disabled_optimizers is None:
             disabled_optimizers = set()
